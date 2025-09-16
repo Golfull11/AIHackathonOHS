@@ -1,0 +1,39 @@
+# ----------------
+# OS / Editor
+# ----------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/
+
+# ----------------
+# Dependencies
+# ----------------
+# Node.js
+node_modules/
+
+# ----------------
+# Build & Compiled
+# ----------------
+dist/
+build/
+out/
+*.o
+*.class
+*.exe
+
+# ----------------
+# Logs & Temporary Files
+# ----------------
+*.log
+*.tmp
+*~
+
+# ----------------
+# Sensitive Data
+# ----------------
+.env
+*.env
+config.ini

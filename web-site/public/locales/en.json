@@ -1,0 +1,16 @@
+{
+  "translation": {
+    "title": "Safety Navigator",
+    "subtitle": "Enter your work task to check for potential hazards and countermeasures.",
+    "search_placeholder": "e.g., Assembling scaffolding at a height",
+    "search_button": "Search",
+    "loading_text": "Searching...",
+    "measures_header": "Measures to be Taken",
+    "videos_header": "Related Videos",
+    "video_title_description": "Accident Situation",
+    "video_title_measure": "Countermeasure",
+    "gemini_suggestion_header": "Additional Suggestions from Gemini",
+    "generate_doc_button": "Create Document from this Content",
+    "generate_doc_button_loading": "Creating document..."
+  }
+}

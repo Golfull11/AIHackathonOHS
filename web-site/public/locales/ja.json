@@ -1,0 +1,16 @@
+{
+  "translation": {
+    "title": "労働安全ナビゲーター",
+    "subtitle": "作業内容を入力して、潜む危険と対策を確認しましょう。",
+    "search_placeholder": "例：高所で足場を組み立てる作業",
+    "search_button": "検索",
+    "loading_text": "検索中...",
+    "measures_header": "実施すべき対策",
+    "videos_header": "関連動画",
+    "video_title_description": "事故の状況",
+    "video_title_measure": "対策",
+    "gemini_suggestion_header": "Geminiからの追加提案",
+    "generate_doc_button": "この内容で文書を作成",
+    "generate_doc_button_loading": "文書を作成中..."
+  }
+}

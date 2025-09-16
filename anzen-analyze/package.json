@@ -1,0 +1,19 @@
+{
+  "name": "anzen-site-analyze",
+  "version": "1.0.0",
+  "description": "",
+  "main": "analyze.js",
+  "type": "module",
+  "scripts": {
+    "start": "node analyze.js",
+    "crawl": "node crawler.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/firestore": "^7.11.3",
+    "@google/genai": "^1.17.0",
+    "dotenv": "^17.2.2"
+  }
+}

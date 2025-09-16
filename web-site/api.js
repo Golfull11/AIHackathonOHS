@@ -1,0 +1,355 @@
+// api.js (ファイルサイズチェックのバグを修正)
+
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import { Firestore } from '@google-cloud/firestore';
+import { GoogleGenAI } from "@google/genai";
+import fetch from 'node-fetch';
+import puppeteer from 'puppeteer';
+import { Storage } from '@google-cloud/storage';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+// --- 設定 ---
+const PORT = process.env.PORT || 8080;
+const CATEGORY_COLLECTION = 'categories';
+const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
+const TEXT_MODEL_NAME = "gemini-2.5-flash"
+const IMAGE_MODEL_NAME = "imagen-4.0-fast-generate-001"
+const MIN_VIDEO_SIZE_BYTES = 51200; // 50KB
+const storage = new Storage();
+
+// --- 環境変数 ---
+const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT;
+const LOCATION = process.env.GOOGLE_CLOUD_LOCATION;
+const BUCKET_NAME = process.env.BUCKET_NAME
+
+// --- クライアント初期化 ---
+const app = express();
+const firestore = new Firestore();
+const genAI = new GoogleGenAI({
+        vertexai: true,
+        project: PROJECT_ID,
+        location: LOCATION,
+    });
+
+app.use(cors());
+app.use(express.json());
+
+let categoryCache = [];
+
+function cosineSimilarity(vecA, vecB) {
+    const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+    const magnitudeA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+    const magnitudeB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+    if (magnitudeA === 0 || magnitudeB === 0) return 0;
+    return dotProduct / (magnitudeA * magnitudeB);
+}
+
+/**
+ * ファイルサイズをチェックする関数 (修正版)
+ */
+async function filterValidVideos(videoUrls) {
+    if (!videoUrls) return {};
+
+    const checks = Object.entries(videoUrls).map(async ([type, url]) => {
+        if (!url) return { type, url: null, isValid: false };
+        try {
+            const response = await fetch(url, { method: 'HEAD' });
+            const contentLength = response.headers.get('content-length');
+            if (contentLength && parseInt(contentLength, 10) > MIN_VIDEO_SIZE_BYTES) {
+                return { type, url, isValid: true };
+            }
+        } catch (error) {
+            console.error(`Error checking video size for ${url}:`, error);
+        }
+        return { type, url, isValid: false };
+    });
+
+    const results = await Promise.all(checks);
+
+    const validVideoUrls = results
+        .filter(result => result.isValid)
+        .reduce((obj, result) => {
+            obj[result.type] = result.url;
+            return obj;
+        }, {});
+    
+    console.log("Original URLs:", videoUrls);
+    console.log("Filtered Valid URLs:", validVideoUrls);
+
+    return validVideoUrls;
+}
+
+/**
+ * ★★★ 新しい関数：テキストを日本語に翻訳する ★★★
+ */
+async function translateToJapanese(text) {
+    if (!text) return "";
+    const prompt = `以下のテキストを日本語に翻訳してください。翻訳結果のテキストだけを返してください。専門用語はできるだけ正確に翻訳してください。\n\nテキスト：\n"${text}"\n\n日本語訳:`;
+    try {
+        const result = await genAI.models.generateContent({model: TEXT_MODEL_NAME, contents: prompt});
+        // ★★★ ご指摘の通り、一貫性のある正しいレスポンス処理に修正 ★★★
+        if (result && result.response && result.response.candidates && result.response.candidates.length > 0) {
+            return result.text.trim();
+        } else {
+            // 万が一、予期しないレスポンス構造だった場合のフォールバック
+            console.error("Unexpected response structure from translation API:", JSON.stringify(result, null, 2));
+            throw new Error("Invalid response structure from translation API.");
+        }
+    } catch (error) {
+        console.error("Error during translation to Japanese:", error);
+        return text; // 翻訳に失敗した場合は、元のテキストをそのまま返す
+    }
+}
+
+/**
+ * APIエンドポイント: /search
+ */
+app.post('/search', async (req, res) => {
+    const { query, lang = 'ja' } = req.body;
+    if (!query) return res.status(400).send({ error: 'Query text is required.' });
+
+    try {
+        console.log(`Original query: "${query}" (lang: ${lang})`);
+        const japaneseQuery = (lang === 'ja') ? query : await translateToJapanese(query);
+        console.log(`Translated query (ja): "${japaneseQuery}"`);
+
+        const queryResult = await genAI.models.embedContent({ model: EMBEDDING_MODEL_NAME, contents: japaneseQuery });
+        const queryEmbedding = queryResult.embeddings[0].values;
+
+        let bestMatch = { score: -1, category: null };
+        for (const category of categoryCache) {
+            if (category.embedding && category.embedding.length === 3072) {
+                const score = cosineSimilarity(queryEmbedding, category.embedding);
+                if (score > bestMatch.score) {
+                    bestMatch = { score, category };
+                }
+            }
+        }
+        
+        if (!bestMatch.category) return res.status(404).send({ error: 'No matching category found.' });
+
+        const matchedCategory = bestMatch.category;
+        const validVideoUrls = await filterValidVideos(matchedCategory.videoUrls);
+        const responseData = {
+            id: matchedCategory.id,
+            name: matchedCategory.name[lang] || matchedCategory.name.ja,
+            description: matchedCategory.description[lang] || matchedCategory.description.ja,
+            measures: matchedCategory.measures[lang] || matchedCategory.measures.ja,
+            videoUrls: validVideoUrls,
+            additionalSuggestions: [],
+        };
+
+        // ★★★ Geminiに渡すアイコン名のリスト ★★★
+        const ICON_LIST = "person-falling, bolt, helmet-safety, triangle-exclamation, fire, tools, truck-moving, user-doctor, temperature-high, wind";
+        const additionalSuggestionPrompt = `
+    あなたは非常に慎重な労働安全の専門家です。
+    ある作業者が、以下の「ユーザーの作業内容」を行おうとしています。
+    この作業内容を考慮し、追加で注意すべき実践的な安全対策を10個、重要な順に、簡潔な箇条書き（- 対策文）で提案してください。
+    さらに、各対策文に対して、以下の【アイコンリスト】の中から最も関連性の高いアイコン名を1つだけ選び、"icon: [アイコン名]" の形式で付記してください。
+
+    回答はユーザーが指定した言語（${lang}）で記述してください。
+
+    【アイコンリスト】
+    ${ICON_LIST}
+
+    【ユーザーの作業内容】
+    ${query}
+
+    【関連する災害カテゴリ】
+    名前: ${matchedCategory.name[lang] || matchedCategory.name.ja}
+    
+    【出力形式の例】
+    - ヘルメットを必ず着用してください。 icon: helmet-safety
+    - 足元が不安定な場所では作業しないでください。 icon: person-falling
+
+    【追加の安全提案】
+`;
+
+        const suggestionResult = await genAI.models.generateContent({model: TEXT_MODEL_NAME, contents: additionalSuggestionPrompt});
+        const suggestionText = suggestionResult.text.trim();
+
+        // ★★★ Geminiの返答をパースして、テキストとアイコンのオブジェクト配列に変換 ★★★
+        responseData.additionalSuggestions = suggestionText.split('\n').map(line => {
+        const match = line.match(/-\s*(.*?)\s*icon:\s*(\S+)/);
+        if (match) {
+            return { text: match[1].trim(), icon: match[2].trim() };
+        }
+        // マッチしなかった場合は、テキストのみを返す
+        return { text: line.replace(/-\s*/, '').trim(), icon: 'triangle-exclamation' };
+        }).filter(item => item.text);
+
+        console.log(`Matched Category: "${responseData.name}" (Score: ${bestMatch.score})`);
+        res.status(200).send(responseData);
+
+
+    } catch (error) {
+        console.error("Error during search:", error);
+        res.status(500).send({ error: 'An internal error occurred.' });
+    }
+});
+
+/**
+ * ★★★ 新しい関数：Imagenでピクトグラムを生成し、Storageに保存してURLを返す ★★★
+ */
+async function generateAndUploadPictogram(text, fileName) {
+    console.log(`Generating pictogram for: "${text}"`);
+    const prompt = `Create a single, clear, universally understandable safety pictogram.
+
+**Scene to depict:**
+Visually represent the core concept of the following safety rule: "${text}"
+Simple and clear flat illustration for a safety manual. Vector style. White background. Limited color palette based on blue, yellow, and gray. The characters are simple and gender-neutral. No text in the illustration.
+`;
+    
+    try {
+        const result = await genAI.models.generateImages({model: IMAGE_MODEL_NAME, prompt: prompt, config:{ numberOfImages: 1, }});
+        const generatedImage = result.generatedImages[0];
+        const imgBytes = generatedImage.image.imageBytes;
+
+        const buffer = Buffer.from(imgBytes, 'base64');
+
+        const tempFilePath = path.join(os.tmpdir(), fileName);
+        fs.writeFileSync(tempFilePath, buffer);
+
+        const destinationPath = `pictograms/${fileName}`;
+        await storage.bucket(BUCKET_NAME).upload(tempFilePath, { destination: destinationPath });
+        fs.unlinkSync(tempFilePath);
+        
+        const file = storage.bucket(BUCKET_NAME).file(destinationPath);
+        await file.makePublic();
+        return file.publicUrl();
+
+    } catch (error) {
+        console.error(`Error generating pictogram for "${text}":`, error);
+        return null;
+    }
+}
+
+/**
+ * ★★★ 新しいエンドポイント：/generate-pdf ★★★
+ */
+app.post('/generate-pdf', async (req, res) => {
+    const { categoryId, userQuery, additionalSuggestions, lang = 'ja' } = req.body;
+    if (!categoryId || !userQuery || !additionalSuggestions) {
+        return res.status(400).send({ error: 'Required fields are missing.' });
+    }
+
+    try {
+        console.log(`Generating PDF for categoryId: ${categoryId} in lang: ${lang}`);
+        const doc = await firestore.collection(CATEGORY_COLLECTION).doc(categoryId).get();
+        if (!doc.exists) return res.status(404).send({ error: 'Category not found.' });
+        const category = doc.data();
+
+        // 指定された言語のテキストを取得
+        const nameText = category.name[lang] || category.name.ja;
+        const descriptionText = category.description[lang] || category.description.ja;
+        const measuresTexts = category.measures[lang] || category.measures.ja;
+        
+        // ★★★ ここからが修正の核心 ★★★
+
+        // 1. PDFに表示するテキストと、ピクトグラム生成用の元テキストを準備
+        const validMeasures = []; // PDF表示用の、指定言語の対策文
+        const measurePrompts = []; // ピクトグラム生成用の、日本語の対策文
+        (category.measures.ja || []).forEach((measure, i) => {
+            const cleanText = measure.replace(/【.*?】/g, '').trim();
+            if (cleanText) {
+                measurePrompts.push(cleanText);
+                validMeasures.push(measuresTexts[i] || measure);
+            }
+        });
+
+        const validSuggestions = []; // PDF表示用の、指定言語の追加提案
+        const suggestionPrompts = []; // ピクトグラム生成用の、指定言語の追加提案
+        additionalSuggestions.forEach((suggestion) => {
+            const cleanText = suggestion.text.replace(/【.*?】/g, '').trim();
+            if (cleanText) {
+                suggestionPrompts.push(cleanText);
+                validSuggestions.push(cleanText);
+            }
+        });
+
+        // 2. ピクトグラム生成タスクを一括で作成
+        const pictogramTasks = [
+            ...measurePrompts.map((prompt, i) => generateAndUploadPictogram(prompt, `pictogram_${categoryId}_measure${i}.png`)),
+            ...suggestionPrompts.map((prompt, i) => generateAndUploadPictogram(prompt, `pictogram_${categoryId}_add${i}.png`))
+        ];
+        
+        const pictogramUrls = await Promise.all(pictogramTasks);
+
+        // ★★★ HTML生成時に、指定言語のテキスト変数を使う ★★★
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    /* フォントファミリーを調整して多言語に対応 */
+                    @font-face {
+                        font-family: 'NotoSansJP';
+                        src: url(https://fonts.gstatic.com/s/notosansjp/v32/-F62fjtqLzI2JPCg5ZGez2szSA.woff2) format('woff2');
+                    }
+                    body { font-family: 'NotoSansJP', 'Helvetica', 'Arial', sans-serif; padding: 40px; font-size: 12px; }
+                    /* ...その他のCSS... */
+                </style>
+            </head>
+            <body>
+                <h1>【Safety Report】</h1>
+                <p><strong>■ Work Task:</strong> ${userQuery}</p>
+                <hr>
+                <h2>${nameText}</h2>
+                <p>${descriptionText}</p>
+                
+                <h2>Measures to be Taken</h2>
+                <ul>
+                    ${validMeasures.map((measure, i) => `<li><img class="pictogram" src="${pictogramUrls[i]}" alt="">${measure}</li>`).join('')}
+                </ul>
+
+                <h2>Additional Suggestions from Gemini</h2>
+                <ul>
+                    ${validSuggestions.map((suggestion, i) => `<li><img class="pictogram" src="${pictogramUrls[validMeasures.length + i]}" alt="">${suggestion}</li>`).join('')}
+                </ul>
+            </body>
+            </html>
+        `;
+
+        const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+        await browser.close();
+
+        const pdfFileName = `reports/${categoryId}_${Date.now()}.pdf`;
+        const file = storage.bucket(BUCKET_NAME).file(pdfFileName);
+        await file.save(pdfBuffer, { contentType: 'application/pdf' });
+        
+        res.status(200).send({ pdfUrl: file.publicUrl() });
+
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        res.status(500).send({ error: 'Failed to generate PDF.' });
+    }
+});
+
+/**
+ * サーバーを起動するメイン関数
+ */
+async function startServer() {
+    const snapshot = await firestore.collection(CATEGORY_COLLECTION).get();
+    const allCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    categoryCache = allCategories.filter(category => {
+        const hasValidDescription = category.description && category.description.ja && category.description.ja !== '生成失敗';
+        const hasValidEmbedding = category.embedding && category.embedding.length === 3072;
+        return hasValidDescription && hasValidEmbedding;
+    });
+
+    console.log(`Loaded and cached ${categoryCache.length} valid categories.`);
+    app.listen(PORT, () => {
+        console.log(`API server listening on port ${PORT}`);
+    });
+}
+
+startServer();
