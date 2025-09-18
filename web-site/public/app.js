@@ -1,9 +1,9 @@
 // app.js
 
 // ローカルテスト時: 'http://localhost:8080/search'
-const API_URL = 'http://localhost:8080/search';
+// const API_URL = 'http://localhost:8080/search';
 // Cloud Runデプロイ後:
-//const API_URL = 'https://safety-api-service-467976745475.asia-northeast1.run.app/search'
+const API_URL = 'https://safety-api-service-467976745475.asia-northeast1.run.app/search'
 
 const searchInput = document.getElementById('searchInput');
 const searchButton = document.getElementById('searchButton');

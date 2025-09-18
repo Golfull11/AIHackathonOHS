@@ -334,7 +334,10 @@ app.post('/generate-pdf', async (req, res) => {
  * 事例登録用エンドポイント
  */
 app.post('/internal-cases', async (req, res) => {
-    const { title, description, cause, measures } = req.body;
+    // フロントエンドから送信されるデータを全て受け取る
+    const { title, description, cause, measures, occurredAt } = req.body;
+    
+    // 必須項目のチェック
     if (!title || !description || !cause || !measures) {
         return res.status(400).send({ error: 'Required fields are missing.' });
     }
@@ -345,6 +348,9 @@ app.post('/internal-cases', async (req, res) => {
             description,
             cause,
             measures,
+            // 受け取った occurredAt をDateオブジェクトに変換して保存
+            occurredAt: occurredAt ? new Date(occurredAt) : null, 
+            // 登録日時をサーバーサイドで自動生成
             createdAt: new Date(),
         });
         console.log(`New internal case saved with ID: ${docRef.id}`);

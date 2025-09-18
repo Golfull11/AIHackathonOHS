@@ -11,6 +11,20 @@
     "video_title_measure": "対策",
     "gemini_suggestion_header": "Geminiからの追加提案",
     "generate_doc_button": "この内容で文書を作成",
-    "generate_doc_button_loading": "文書を作成中..."
+    "generate_doc_button_loading": "文書を作成中...",
+    "admin_title": "管理者画面",
+    "login_header": "ログイン",
+    "login_email_placeholder": "メールアドレス",
+    "login_password_placeholder": "パスワード",
+    "login_button": "ログイン",
+    "login_status_text": "でログイン中",
+    "logout_button": "ログアウト",
+    "register_case_header": "社内事例の登録",
+    "occurred_at_label": "発生日時:",
+    "title_label": "タイトル（必須）",
+    "description_label": "どのような状況だったか（必須）",
+    "cause_label": "原因は何か（必須）",
+    "measures_label": "どのような対策を行ったか（必須）",
+    "submit_button": "登録する"
   }
 }

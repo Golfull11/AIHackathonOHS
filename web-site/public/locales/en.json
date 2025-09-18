@@ -11,6 +11,20 @@
     "video_title_measure": "Countermeasure",
     "gemini_suggestion_header": "Additional Suggestions from Gemini",
     "generate_doc_button": "Create Document from this Content",
-    "generate_doc_button_loading": "Creating document..."
+    "generate_doc_button_loading": "Creating document...",
+    "admin_title": "Admin Panel",
+    "login_header": "Login",
+    "login_email_placeholder": "Email Address",
+    "login_password_placeholder": "Password",
+    "login_button": "Login",
+    "login_status_text": "Logged in as",
+    "logout_button": "Logout",
+    "register_case_header": "Register Internal Case",
+    "occurred_at_label": "Date of Occurrence:",
+    "title_label": "Title (Required)",
+    "description_label": "What was the situation? (Required)",
+    "cause_label": "What was the cause? (Required)",
+    "measures_label": "What countermeasures were taken? (Required)",
+    "submit_button": "Submit"
   }
 }

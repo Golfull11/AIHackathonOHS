@@ -11,6 +11,20 @@
     "video_title_measure": "对策",
     "gemini_suggestion_header": "来自Gemini的额外建议",
     "generate_doc_button": "根据此内容创建文档",
-    "generate_doc_button_loading": "正在创建文档..."
+    "generate_doc_button_loading": "正在创建文档...",
+    "admin_title": "管理面板",
+    "login_header": "登录",
+    "login_email_placeholder": "电子邮件地址",
+    "login_password_placeholder": "密码",
+    "login_button": "登录",
+    "login_status_text": "登录为",
+    "logout_button": "登出",
+    "register_case_header": "登记内部案例",
+    "occurred_at_label": "发生日期:",
+    "title_label": "标题 (必需)",
+    "description_label": "当时情况如何？ (必需)",
+    "cause_label": "原因是什么？ (必需)",
+    "measures_label": "采取了哪些对策？ (必需)",
+    "submit_button": "提交"
   }
 }

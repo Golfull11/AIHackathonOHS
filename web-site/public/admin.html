@@ -2,30 +2,65 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>管理者画面</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理者画面 - 労働安全ナビゲーター</title>
     <link rel="stylesheet" href="style.css">
+    <!-- i18nextライブラリを読み込む -->
+    <script src="https://unpkg.com/i18next/dist/umd/i18next.min.js"></script>
 </head>
 <body>
-    <header><h1>管理者画面</h1></header>
+    <header>
+        <!-- data-i18n属性を使って多言語化に対応 -->
+        <h1 data-i18n="admin_title">管理者画面</h1>
+    </header>
+
     <main>
         <!-- ログインフォーム (最初は表示) -->
         <div id="login-container">
-            <h2>ログイン</h2>
+            <h2 data-i18n="login_header">ログイン</h2>
             <input type="email" id="login-email" placeholder="メールアドレス">
             <input type="password" id="login-password" placeholder="パスワード">
-            <button id="login-button">ログイン</button>
+            <button id="login-button" data-i18n="login_button">ログイン</button>
             <p id="login-error" class="error-message"></p>
         </div>
 
         <!-- データ登録フォーム (ログイン後に表示) -->
         <div id="admin-panel" class="hidden">
-            <p><span id="user-email"></span>でログイン中 <button id="logout-button">ログアウト</button></p>
-            <h2>社内事例の登録</h2>
-            <input type="text" id="case-title" placeholder="タイトル（必須）">
-            <textarea id="case-description" placeholder="どのような状況だったか（必須）"></textarea>
-            <textarea id="case-cause" placeholder="原因は何か（必須）"></textarea>
-            <textarea id="case-measures" placeholder="どのような対策を行ったか（必須）"></textarea>
-            <button id="submit-case-button">登録する</button>
+            <p>
+                <span id="user-email"></span>
+                <span data-i18n="login_status_text">でログイン中</span>
+                <button id="logout-button" data-i18n="logout_button">ログアウト</button>
+            </p>
+            <h2 data-i18n="register_case_header">社内事例の登録</h2>
+            
+            <!-- 発生日時の入力フィールド -->
+            <div class="form-group">
+                <label for="case-occurred-at" data-i18n="occurred_at_label">発生日時:</label>
+                <input type="datetime-local" id="case-occurred-at">
+            </div>
+            
+            <!-- 各入力フィールド -->
+            <div class="form-group">
+                <label for="case-title" data-i18n="title_label">タイトル（必須）</label>
+                <input type="text" id="case-title">
+            </div>
+
+            <div class="form-group">
+                <label for="case-description" data-i18n="description_label">どのような状況だったか（必須）</label>
+                <textarea id="case-description" rows="4"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="case-cause" data-i18n="cause_label">原因は何か（必須）</label>
+                <textarea id="case-cause" rows="4"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="case-measures" data-i18n="measures_label">どのような対策を行ったか（必須）</label>
+                <textarea id="case-measures" rows="4"></textarea>
+            </div>
+
+            <button id="submit-case-button" data-i18n="submit_button">登録する</button>
             <p id="submit-status"></p>
         </div>
     </main>
@@ -35,6 +70,7 @@
     <script src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
     <script src="/__/firebase/init.js"></script>
     
+    <!-- 管理者画面用のJavaScript -->
     <script src="admin.js"></script>
 </body>
 </html>
