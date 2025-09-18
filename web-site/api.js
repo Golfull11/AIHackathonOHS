@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 8080;
 const CATEGORY_COLLECTION = 'categories';
 const EMBEDDING_MODEL_NAME = "gemini-embedding-001";
 const TEXT_MODEL_NAME = "gemini-2.5-flash"
-const IMAGE_MODEL_NAME = "imagen-4.0-fast-generate-001"
+const IMAGE_MODEL_NAME = "imagen-4.0-generate-001"
 const MIN_VIDEO_SIZE_BYTES = 51200; // 50KB
 const storage = new Storage();
 
@@ -205,24 +205,21 @@ Simple and clear flat illustration for a safety manual. Vector style. White back
 `;
     
     try {
-        const result = await genAI.models.generateImages({model: IMAGE_MODEL_NAME, prompt: prompt, config:{ numberOfImages: 1, }});
-        const generatedImage = result.generatedImages[0];
-        const imgBytes = generatedImage.image.imageBytes;
-
-        const buffer = Buffer.from(imgBytes, 'base64');
-
-        const tempFilePath = path.join(os.tmpdir(), fileName);
-        fs.writeFileSync(tempFilePath, buffer);
-
-        const destinationPath = `pictograms/${fileName}`;
-        await storage.bucket(BUCKET_NAME).upload(tempFilePath, { destination: destinationPath });
-        fs.unlinkSync(tempFilePath);
-        
-        const file = storage.bucket(BUCKET_NAME).file(destinationPath);
-        await file.makePublic();
-        return file.publicUrl();
-
-    } catch (error) {
+        const result = await genAI.models.generateImages({model: IMAGE_MODEL_NAME, prompt: prompt, config:{numberOfImages: 1}});
+        for (const generatedImage of result.generatedImages){
+            let imgBytes = generatedImage.image.imageBytes;
+            const buffer = Buffer.from(imgBytes, "base64");
+            const tempFilePath = path.join(os.tmpdir(), fileName);
+            fs.writeFileSync(tempFilePath, buffer);
+            const destinationPath = `pictograms/${fileName}`;
+            await storage.bucket(BUCKET_NAME).upload(tempFilePath, { destination: destinationPath });
+            fs.unlinkSync(tempFilePath);
+            
+            const file = storage.bucket(BUCKET_NAME).file(destinationPath);
+            await file.makePublic();
+            return file.publicUrl();
+            }
+        }catch (error) {
         console.error(`Error generating pictogram for "${text}":`, error);
         return null;
     }
@@ -330,6 +327,31 @@ app.post('/generate-pdf', async (req, res) => {
     } catch (error) {
         console.error("Error generating PDF:", error);
         res.status(500).send({ error: 'Failed to generate PDF.' });
+    }
+});
+
+/**
+ * 事例登録用エンドポイント
+ */
+app.post('/internal-cases', async (req, res) => {
+    const { title, description, cause, measures } = req.body;
+    if (!title || !description || !cause || !measures) {
+        return res.status(400).send({ error: 'Required fields are missing.' });
+    }
+
+    try {
+        const docRef = await firestore.collection('internal_cases').add({
+            title,
+            description,
+            cause,
+            measures,
+            createdAt: new Date(),
+        });
+        console.log(`New internal case saved with ID: ${docRef.id}`);
+        res.status(201).send({ message: 'Case saved successfully.', id: docRef.id });
+    } catch (error) {
+        console.error("Error saving internal case:", error);
+        res.status(500).send({ error: 'Failed to save case.' });
     }
 });
 

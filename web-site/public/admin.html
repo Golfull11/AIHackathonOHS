@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>管理者画面</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header><h1>管理者画面</h1></header>
+    <main>
+        <!-- ログインフォーム (最初は表示) -->
+        <div id="login-container">
+            <h2>ログイン</h2>
+            <input type="email" id="login-email" placeholder="メールアドレス">
+            <input type="password" id="login-password" placeholder="パスワード">
+            <button id="login-button">ログイン</button>
+            <p id="login-error" class="error-message"></p>
+        </div>
+
+        <!-- データ登録フォーム (ログイン後に表示) -->
+        <div id="admin-panel" class="hidden">
+            <p><span id="user-email"></span>でログイン中 <button id="logout-button">ログアウト</button></p>
+            <h2>社内事例の登録</h2>
+            <input type="text" id="case-title" placeholder="タイトル（必須）">
+            <textarea id="case-description" placeholder="どのような状況だったか（必須）"></textarea>
+            <textarea id="case-cause" placeholder="原因は何か（必須）"></textarea>
+            <textarea id="case-measures" placeholder="どのような対策を行ったか（必須）"></textarea>
+            <button id="submit-case-button">登録する</button>
+            <p id="submit-status"></p>
+        </div>
+    </main>
+
+    <!-- Firebase SDK を読み込む -->
+    <script src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
+    <script src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
+    <script src="/__/firebase/init.js"></script>
+    
+    <script src="admin.js"></script>
+</body>
+</html>
