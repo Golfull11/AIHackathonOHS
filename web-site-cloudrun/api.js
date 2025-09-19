@@ -1,5 +1,3 @@
-// api.js (ファイルサイズチェックのバグを修正)
-
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -11,6 +9,7 @@ import { Storage } from '@google-cloud/storage';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { fileURLToPath } from 'url';
 
 // --- 設定 ---
 const PORT = process.env.PORT || 8080;
@@ -25,6 +24,7 @@ const storage = new Storage();
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT;
 const LOCATION = process.env.GOOGLE_CLOUD_LOCATION;
 const BUCKET_NAME = process.env.BUCKET_NAME
+// const RAG_CORPUS = process.env.RAG_CORPUS_NAME
 
 // --- クライアント初期化 ---
 const app = express();
@@ -34,6 +34,11 @@ const genAI = new GoogleGenAI({
         project: PROJECT_ID,
         location: LOCATION,
     });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// 'public' フォルダの中身をウェブサイトとして公開します
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(cors());
 app.use(express.json());
@@ -143,18 +148,16 @@ app.post('/search', async (req, res) => {
             additionalSuggestions: [],
         };
 
-        // ★★★ Geminiに渡すアイコン名のリスト ★★★
-        const ICON_LIST = "person-falling, bolt, helmet-safety, triangle-exclamation, fire, tools, truck-moving, user-doctor, temperature-high, wind";
+        // 1. Geminiに渡すプロンプト (RAGに関する記述を削除)
         const additionalSuggestionPrompt = `
     あなたは非常に慎重な労働安全の専門家です。
-    ある作業者が、以下の「ユーザーの作業内容」を行おうとしています。
-    この作業内容を考慮し、追加で注意すべき実践的な安全対策を10個、重要な順に、簡潔な箇条書き（- 対策文）で提案してください。
+    以下の「ユーザーの作業内容」に対して、追加で注意すべき実践的な安全対策を10個、重要な順に、簡潔な箇条書き（- 対策文）で提案してください。
     さらに、各対策文に対して、以下の【アイコンリスト】の中から最も関連性の高いアイコン名を1つだけ選び、"icon: [アイコン名]" の形式で付記してください。
 
     回答はユーザーが指定した言語（${lang}）で記述してください。
 
     【アイコンリスト】
-    ${ICON_LIST}
+    person-falling, bolt, helmet-safety, triangle-exclamation, fire, tools, truck-moving, user-doctor, temperature-high, wind
 
     【ユーザーの作業内容】
     ${query}
@@ -168,12 +171,17 @@ app.post('/search', async (req, res) => {
 
     【追加の安全提案】
 `;
-
-        const suggestionResult = await genAI.models.generateContent({model: TEXT_MODEL_NAME, contents: additionalSuggestionPrompt});
-        const suggestionText = suggestionResult.text.trim();
+        
+        // 2. RAGを使わず、直接コンテンツを生成
+        const result = await genAI.models.generateContent({
+            model: TEXT_MODEL_NAME,
+            contents: additionalSuggestionPrompt
+        });
+        
+        const suggestionText = result.text;
 
         // ★★★ Geminiの返答をパースして、テキストとアイコンのオブジェクト配列に変換 ★★★
-        responseData.additionalSuggestions = suggestionText.split('\n').map(line => {
+        responseData.additionalSuggestions = suggestionText.trim().split('\n').map(line => {
         const match = line.match(/-\s*(.*?)\s*icon:\s*(\S+)/);
         if (match) {
             return { text: match[1].trim(), icon: match[2].trim() };
