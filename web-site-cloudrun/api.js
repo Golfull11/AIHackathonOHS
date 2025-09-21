@@ -148,13 +148,37 @@ app.post('/search', async (req, res) => {
             additionalSuggestions: [],
         };
 
+        // ★★★ ここからが簡易RAGの実装部分です ★★★
+
+        // 1. Firestoreから最新5件の事故事例を取得
+        let recentCasesContext = "社内で最近発生した関連事故事例はありません。";
+        try {
+            const snapshot = await firestore.collection('internal_cases')
+                .orderBy('createdAt', 'desc')
+                .limit(50)
+                .get();
+            
+            if (!snapshot.empty) {
+                const cases = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return `- タイトル: ${data.title}\n  状況: ${data.description}\n  原因: ${data.cause}\n  対策: ${data.measures}`;
+                });
+                recentCasesContext = `【社内で最近発生した関連事故事例】\n${cases.join('\n\n')}`;
+            }
+        } catch (firestoreError) {
+            console.error("Error fetching recent cases from Firestore:", firestoreError);
+        }
+
         // 1. Geminiに渡すプロンプト (RAGに関する記述を削除)
         const additionalSuggestionPrompt = `
     あなたは非常に慎重な労働安全の専門家です。
-    以下の「ユーザーの作業内容」に対して、追加で注意すべき実践的な安全対策を10個、重要な順に、簡潔な箇条書き（- 対策文）で提案してください。
+    以下の【社内で最近発生した関連事故事例】を最優先で参照し、ユーザーの作業内容に関連性が高い場合は、その教訓を必ず反映させてください。
+    その上で、以下の「ユーザーの作業内容」に対して、追加で注意すべき実践的な安全対策を10個、重要な順に、簡潔な箇条書き（- 対策文）で提案してください。
     さらに、各対策文に対して、以下の【アイコンリスト】の中から最も関連性の高いアイコン名を1つだけ選び、"icon: [アイコン名]" の形式で付記してください。
 
     回答はユーザーが指定した言語（${lang}）で記述してください。
+
+    ${recentCasesContext}
 
     【アイコンリスト】
     person-falling, bolt, helmet-safety, triangle-exclamation, fire, tools, truck-moving, user-doctor, temperature-high, wind
@@ -172,7 +196,7 @@ app.post('/search', async (req, res) => {
     【追加の安全提案】
 `;
         
-        // 2. RAGを使わず、直接コンテンツを生成
+        // 2. コンテンツを生成
         const result = await genAI.models.generateContent({
             model: TEXT_MODEL_NAME,
             contents: additionalSuggestionPrompt
@@ -209,7 +233,7 @@ async function generateAndUploadPictogram(text, fileName) {
 
 **Scene to depict:**
 Visually represent the core concept of the following safety rule: "${text}"
-Simple and clear flat illustration for a safety manual. Vector style. White background. Limited color palette based on blue, yellow, and gray. The characters are simple and gender-neutral. No text in the illustration.
+Simple and clear flat illustration for a safety manual. No text and no characters in this illustration. Vector style. White background. Limited color palette based on blue, yellow, and gray. The characters are simple and gender-neutral.
 `;
     
     try {
@@ -248,16 +272,12 @@ app.post('/generate-pdf', async (req, res) => {
         if (!doc.exists) return res.status(404).send({ error: 'Category not found.' });
         const category = doc.data();
 
-        // 指定された言語のテキストを取得
         const nameText = category.name[lang] || category.name.ja;
         const descriptionText = category.description[lang] || category.description.ja;
         const measuresTexts = category.measures[lang] || category.measures.ja;
         
-        // ★★★ ここからが修正の核心 ★★★
-
-        // 1. PDFに表示するテキストと、ピクトグラム生成用の元テキストを準備
-        const validMeasures = []; // PDF表示用の、指定言語の対策文
-        const measurePrompts = []; // ピクトグラム生成用の、日本語の対策文
+        const validMeasures = []; 
+        const measurePrompts = [];
         (category.measures.ja || []).forEach((measure, i) => {
             const cleanText = measure.replace(/【.*?】/g, '').trim();
             if (cleanText) {
@@ -266,8 +286,8 @@ app.post('/generate-pdf', async (req, res) => {
             }
         });
 
-        const validSuggestions = []; // PDF表示用の、指定言語の追加提案
-        const suggestionPrompts = []; // ピクトグラム生成用の、指定言語の追加提案
+        const validSuggestions = [];
+        const suggestionPrompts = [];
         additionalSuggestions.forEach((suggestion) => {
             const cleanText = suggestion.text.replace(/【.*?】/g, '').trim();
             if (cleanText) {
@@ -276,54 +296,110 @@ app.post('/generate-pdf', async (req, res) => {
             }
         });
 
-        // 2. ピクトグラム生成タスクを一括で作成
         const pictogramTasks = [
             ...measurePrompts.map((prompt, i) => generateAndUploadPictogram(prompt, `pictogram_${categoryId}_measure${i}.png`)),
             ...suggestionPrompts.map((prompt, i) => generateAndUploadPictogram(prompt, `pictogram_${categoryId}_add${i}.png`))
         ];
         
         const pictogramUrls = await Promise.all(pictogramTasks);
+        
+        const pdfLabels = {
+            ja: { title: "【安全報告書】", task: "■ 作業内容:", measures: "実施すべき対策", suggestions: "Geminiからの追加提案" },
+            en: { title: "【Safety Report】", task: "■ Work Task:", measures: "Measures to be Taken", suggestions: "Additional Suggestions from Gemini" },
+            bn: { title: "【নিরাপত্তা প্রতিবেদন】", task: "■ কাজের বিবরণ:", measures: "গ্রহণযোগ্য পদক্ষেপ", suggestions: "Gemini থেকে অতিরিক্ত পরামর্শ" },
+            zh: { title: "【安全报告】", task: "■ 工作内容:", measures: "应采取的措施", suggestions: "来自Gemini的额外建议" }
+        };
+        const labels = pdfLabels[lang] || pdfLabels.ja;
 
-        // ★★★ HTML生成時に、指定言語のテキスト変数を使う ★★★
-        const htmlContent = `
-            <!DOCTYPE html>
-            <html>
+        const headContent = `
             <head>
                 <meta charset="UTF-8">
                 <style>
-                    /* フォントファミリーを調整して多言語に対応 */
-                    @font-face {
-                        font-family: 'NotoSansJP';
-                        src: url(https://fonts.gstatic.com/s/notosansjp/v32/-F62fjtqLzI2JPCg5ZGez2szSA.woff2) format('woff2');
-                    }
-                    body { font-family: 'NotoSansJP', 'Helvetica', 'Arial', sans-serif; padding: 40px; font-size: 12px; }
-                    /* ...その他のCSS... */
+                    body { font-family: 'Noto Sans CJK JP', 'Noto Sans Bengali', sans-serif; font-size: 12px; }
+                    .page { page-break-after: always; }
+                    .pictogram-img { 
+                        width: 180px; 
+                        height: 180px; 
+                        vertical-align: middle; 
+                        margin-right: 20px; 
+                        flex-shrink: 0;}
+                    li { list-style: none; margin-bottom: 25px; display: flex; align-items: center; }
+                    h1, h2 { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+                    p { margin-bottom: 10px; line-height: 1.6; }
                 </style>
             </head>
-            <body>
-                <h1>【Safety Report】</h1>
-                <p><strong>■ Work Task:</strong> ${userQuery}</p>
+        `;
+
+        const page1Content = `
+            <div class="page">
+                <h1>${labels.title}</h1>
+                <p><strong>${labels.task}</strong> ${userQuery}</p>
                 <hr>
                 <h2>${nameText}</h2>
                 <p>${descriptionText}</p>
-                
-                <h2>Measures to be Taken</h2>
+                <h2>${labels.measures}</h2>
                 <ul>
-                    ${validMeasures.map((measure, i) => `<li><img class="pictogram" src="${pictogramUrls[i]}" alt="">${measure}</li>`).join('')}
+                    ${validMeasures.map((measure, i) => `<li><img class="pictogram-img" src="${pictogramUrls[i] || ''}" alt=""><span>${measure}</span></li>`).join('')}
                 </ul>
+            </div>
+        `;
 
-                <h2>Additional Suggestions from Gemini</h2>
-                <ul>
-                    ${validSuggestions.map((suggestion, i) => `<li><img class="pictogram" src="${pictogramUrls[validMeasures.length + i]}" alt="">${suggestion}</li>`).join('')}
-                </ul>
-            </body>
+        let suggestionPagesContent = '';
+        const suggestionsPerPage = 4;
+        for (let i = 0; i < validSuggestions.length; i += suggestionsPerPage) {
+            const chunk = validSuggestions.slice(i, i + suggestionsPerPage);
+            const chunkPictogramUrls = pictogramUrls.slice(validMeasures.length + i, validMeasures.length + i + suggestionsPerPage);
+            
+            const isLastPage = (i + suggestionsPerPage) >= validSuggestions.length;
+            const pageClass = isLastPage ? '' : 'page';
+
+            suggestionPagesContent += `
+                <div class="${pageClass}">
+                    <h2>${labels.suggestions}</h2>
+                    <ul>
+                        ${chunk.map((suggestion, j) => `<li><img class="pictogram-img" src="${chunkPictogramUrls[j] || ''}" alt=""><span>${suggestion}</span></li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+                ${headContent}
+                <body>
+                    ${page1Content}
+                    ${suggestionPagesContent}
+                </body>
             </html>
         `;
+        
+        const footerTemplate = `
+          <div style="font-size: 8px; width: 100%; color: #888; padding: 0 40px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="text-align: left;">
+              「職場のあんぜんサイト」（厚生労働省）を加工して作成
+            </div>
+            <div style="text-align: right;">
+              &copy; 2025 DXGX consult. All Rights Reserved.
+            </div>
+          </div>
+            `;
 
         const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-        const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+        const pdfBuffer = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            displayHeaderFooter: true,
+            footerTemplate: footerTemplate,
+            margin: {
+                top: '40px',
+                bottom: '60px',
+                left: '40px',
+                right: '40px'
+            }
+        });
         await browser.close();
 
         const pdfFileName = `reports/${categoryId}_${Date.now()}.pdf`;

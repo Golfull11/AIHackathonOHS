@@ -81,19 +81,32 @@
                         </div>
                     </section>
 
-                    <div class="action-buttons text-center pt-6">
+                    <div class="action-buttons text-center pt-6 flex flex-col sm:flex-row justify-center items-center gap-4">
                         <button id="generateDocButton" data-i18n="generate_doc_button" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:bg-gray-400"></button>
+                        <button id="clearButton" data-i18n="clear_button" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-6 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"></button>
                     </div>
                 </div>
             </main>
             
             <footer class="mt-12 pt-6 border-t border-gray-200 text-center">
+                <p id="citation" class="text-xs text-gray-400 mb-4 hidden">
+                    「職場のあんぜんサイト」（厚生労働省）（<a href="https://anzeninfo.mhlw.go.jp/anzen_pg/SAI_FND.aspx" target="_blank" rel="noopener noreferrer" class="underline hover:text-gray-600">https://anzeninfo.mhlw.go.jp/anzen_pg/SAI_FND.aspx</a>）を加工して作成
+                </p>
                 <p class="text-sm text-gray-500 mb-3" data-i18n="admin_section_title">管理者向け</p>
-                <a href="accident_report_form.html" 
-                   class="inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-5 rounded-lg transition-colors text-sm shadow-sm"
-                   data-i18n="admin_link_text">
-                   事故登録
-                </a>
+                <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+                    <a href="accident_report_form.html" 
+                       class="w-full sm:w-auto inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-5 rounded-lg transition-colors text-sm shadow-sm"
+                       data-i18n="admin_link_text">
+                       <!-- 事故登録 -->
+                    </a>
+                    <a href="accident_list.html" 
+                       class="w-full sm:w-auto inline-block bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-5 rounded-lg transition-colors text-sm shadow-sm"
+                       data-i18n="admin_list_link_text">
+                       <!-- 事故一覧確認 -->
+                    </a>
+                </div>
+                <p class="text-xs text-gray-500 mt-6">&copy; 2025 DXGX consult. All Rights Reserved.</p>
+
             </footer>
 
         </div>
@@ -113,6 +126,7 @@
         const videoMeasure = document.getElementById('video-measure');
         const geminiSuggestionsList = document.getElementById('gemini-suggestions-list');
         const generateDocButton = document.getElementById('generateDocButton');
+        const clearButton = document.getElementById('clearButton');
         let currentCategoryData = null; // APIデータを一時保持
 
         // ★★★ 修正点: API_URL定数を削除 ★★★
@@ -120,16 +134,36 @@
         // --- 翻訳データ ---
         const resources = {
             ja: {
-                translation: { "title": "労働安全ナビゲーター", "subtitle": "作業内容を入力して、潜む危険と対策を確認しましょう。", "search_placeholder": "例：高所で足場を組み立てる作業", "search_button": "検索", "loading_text": "検索中...", "measures_header": "実施すべき対策", "videos_header": "関連動画", "video_title_description": "事故の状況", "video_title_measure": "対策", "gemini_suggestion_header": "Geminiからの追加提案", "generate_doc_button": "この内容で文書を作成", "generate_doc_button_loading": "文書を作成中...", "admin_title": "管理者画面", "login_header": "ログイン", "login_email_placeholder": "メールアドレス", "login_password_placeholder": "パスワード", "login_button": "ログイン", "login_status_text": "でログイン中", "logout_button": "ログアウト", "register_case_header": "社内事例の登録", "occurred_at_label": "発生日時:", "title_label": "タイトル（必須）", "description_label": "どのような状況だったか（必須）", "cause_label": "原因は何か（必須）", "measures_label": "どのような対策を行ったか（必須）", "submit_button": "登録する", "form_title": "事故報告フォーム", "form_subtitle": "以下の項目を入力してください。", "occurrence_time_label": "発生日時", "situation_label": "事故の状況", "cause_label_form": "原因", "countermeasures_label": "考えられる対策", "submit_report_button": "報告を登録する", "error_fetch": "情報の取得に失敗しました。もう一度お試しください。", "error_pdf": "PDFの生成に失敗しました。", "admin_section_title": "管理者向け", "admin_link_text": "事故登録" }
+                translation: {
+                    "title": "労働安全ナビゲーター", "subtitle": "作業内容を入力して、潜む危険と対策を確認しましょう。", "search_placeholder": "例：高所で足場を組み立てる作業", "search_button": "検索", "loading_text": "検索中...", "measures_header": "実施すべき対策", "videos_header": "関連動画", "video_title_description": "事故の状況", "video_title_measure": "対策", "gemini_suggestion_header": "Geminiからの追加提案", "generate_doc_button": "この内容で文書を作成", "generate_doc_button_loading": "文書を作成中...", "clear_button": "クリア", "admin_title": "管理者画面", "login_header": "ログイン", "login_email_placeholder": "メールアドレス", "login_password_placeholder": "パスワード", "login_button": "ログイン", "login_status_text": "でログイン中", "logout_button": "ログアウト", "register_case_header": "社内事例の登録", "occurred_at_label": "発生日時:", "title_label": "タイトル（必須）", "description_label": "どのような状況だったか（必須）", "cause_label": "原因は何か（必須）", "measures_label": "どのような対策を行ったか（必須）", "submit_button": "登録する", "form_title": "事故報告フォーム", "form_subtitle": "以下の項目を入力してください。", "occurrence_time_label": "発生日時", "situation_label": "事故の状況", "cause_label_form": "原因", "countermeasures_label": "考えられる対策", "submit_report_button": "報告を登録する", "error_fetch": "情報の取得に失敗しました。もう一度お試しください。", "error_pdf": "PDFの生成に失敗しました。",
+                    "admin_section_title": "管理者向け", 
+                    "admin_link_text": "事故登録",
+                    "admin_list_link_text": "事故一覧確認" // ★追加
+                }
             },
             en: {
-                translation: { "title": "Safety Navigator", "subtitle": "Enter the work details to check for potential hazards and countermeasures.", "search_placeholder": "e.g., Assembling scaffolding at a high place", "search_button": "Search", "loading_text": "Searching...", "measures_header": "Measures to be Implemented", "videos_header": "Related Videos", "video_title_description": "Accident Situation", "video_title_measure": "Countermeasures", "gemini_suggestion_header": "Additional Suggestions from Gemini", "generate_doc_button": "Create Document with this Content", "generate_doc_button_loading": "Creating document...", "admin_title": "Admin Panel", "login_header": "Login", "login_email_placeholder": "Email Address", "login_password_placeholder": "Password", "login_button": "Login", "login_status_text": "Logged in as", "logout_button": "Logout", "register_case_header": "Register Internal Case", "occurred_at_label": "Date and Time of Occurrence:", "title_label": "Title (Required)", "description_label": "What was the situation? (Required)", "cause_label": "What was the cause? (Required)", "measures_label": "What measures were taken? (Required)", "submit_button": "Submit", "form_title": "Accident Report Form", "form_subtitle": "Please fill in the following items.", "occurrence_time_label": "Time of Occurrence", "situation_label": "Situation of the Accident", "cause_label_form": "Cause", "countermeasures_label": "Possible Countermeasures", "submit_report_button": "Submit Report", "error_fetch": "Failed to fetch information. Please try again.", "error_pdf": "Failed to generate PDF.", "admin_section_title": "For Administrators", "admin_link_text": "Register Accident" }
+                translation: {
+                    "title": "Safety Navigator", "subtitle": "Enter the work details to check for potential hazards and countermeasures.", "search_placeholder": "e.g., Assembling scaffolding at a high place", "search_button": "Search", "loading_text": "Searching...", "measures_header": "Measures to be Implemented", "videos_header": "Related Videos", "video_title_description": "Accident Situation", "video_title_measure": "Countermeasures", "gemini_suggestion_header": "Additional Suggestions from Gemini", "generate_doc_button": "Create Document with this Content", "generate_doc_button_loading": "Creating document...", "clear_button": "Clear", "admin_title": "Admin Panel", "login_header": "Login", "login_email_placeholder": "Email Address", "login_password_placeholder": "Password", "login_button": "Login", "login_status_text": "Logged in as", "logout_button": "Logout", "register_case_header": "Register Internal Case", "occurred_at_label": "Date and Time of Occurrence:", "title_label": "Title (Required)", "description_label": "What was the situation? (Required)", "cause_label": "What was the cause? (Required)", "measures_label": "What measures were taken? (Required)", "submit_button": "Submit", "form_title": "Accident Report Form", "form_subtitle": "Please fill in the following items.", "occurrence_time_label": "Time of Occurrence", "situation_label": "Situation of the Accident", "cause_label_form": "Cause", "countermeasures_label": "Possible Countermeasures", "submit_report_button": "Submit Report", "error_fetch": "Failed to fetch information. Please try again.", "error_pdf": "Failed to generate PDF.",
+                    "admin_section_title": "For Administrators", 
+                    "admin_link_text": "Register Accident",
+                    "admin_list_link_text": "Check Accident List" // ★追加
+                }
             },
             bn: {
-                translation: { "title": "নিরাপত্তা নেভিগেটর", "subtitle": "সম্ভাব্য বিপদ এবং পাল্টা ব্যবস্থা পরীক্ষা করতে কাজের বিবরণ লিখুন।", "search_placeholder": "যেমন, উঁচু স্থানে স্ক্যাফোল্ড একত্রিত করা", "search_button": "অনুসন্ধান", "loading_text": "অনুসন্ধান চলছে...", "measures_header": "বাস্তবায়ন করার জন্য ಕ್ರಮ", "videos_header": "সম্পর্কিত ভিডিও", "video_title_description": "দুর্ঘটনার পরিস্থিতি", "video_title_measure": "পাল্টা ব্যবস্থা", "gemini_suggestion_header": "Gemini থেকে অতিরিক্ত পরামর্শ", "generate_doc_button": "এই বিষয়বস্তু দিয়ে ডকুমেন্ট তৈরি করুন", "generate_doc_button_loading": "ডকুমেন্ট তৈরি হচ্ছে...", "admin_title": "অ্যাডমিন প্যানেল", "login_header": "লগইন", "login_email_placeholder": "ইমেল ঠিকানা", "login_password_placeholder": "পাসওয়ার্ড", "login_button": "লগইন", "login_status_text": " হিসাবে লগ ইন করেছেন", "logout_button": "লগআউট", "register_case_header": "অভ্যন্তরীণ কেস নিবন্ধন করুন", "occurred_at_label": "ঘটনার তারিখ এবং সময়:", "title_label": "শিরোনাম (প্রয়োজনীয়)", "description_label": "পরিস্থিতি কী ছিল? (প্রয়োজনীয়)", "cause_label": "কারণ কী ছিল? (প্রয়োজনীয়)", "measures_label": "কী ব্যবস্থা নেওয়া হয়েছিল? (প্রয়োজনীয়)", "submit_button": "জমা দিন", "form_title": "দুর্ঘটনা প্রতিবেদন ফর্ম", "form_subtitle": "অনুগ্রহ করে নিম্নলিখিত আইটেমগুলি পূরণ করুন।", "occurrence_time_label": "ঘটনার সময়", "situation_label": "দুর্ঘটনার পরিস্থিতি", "cause_label_form": "কারণ", "countermeasures_label": "সম্ভাব্য পাল্টা ব্যবস্থা", "submit_report_button": "প্রতিবেদন জমা দিন", "error_fetch": "তথ্য আনতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।", "error_pdf": "পিডিএফ তৈরি করতে ব্যর্থ হয়েছে।", "admin_section_title": "প্রশাসকদের জন্য", "admin_link_text": "দুর্ঘটনা নিবন্ধন করুন" }
+                translation: {
+                    "title": "নিরাপত্তা নেভিগেটর", "subtitle": "সম্ভাব্য বিপদ এবং পাল্টা ব্যবস্থা পরীক্ষা করতে কাজের বিবরণ লিখুন।", "search_placeholder": "যেমন, উঁচু স্থানে স্ক্যাফোল্ড একত্রিত করা", "search_button": "অনুসন্ধান", "loading_text": "অনুসন্ধান চলছে...", "measures_header": "বাস্তবায়ন করার জন্য ಕ್ರಮ", "videos_header": "সম্পর্কিত ভিডিও", "video_title_description": "দুর্ঘটনার পরিস্থিতি", "video_title_measure": "পাল্টা ব্যবস্থা", "gemini_suggestion_header": "Gemini থেকে অতিরিক্ত পরামর্শ", "generate_doc_button": "এই বিষয়বস্তু দিয়ে ডকুমেন্ট তৈরি করুন", "generate_doc_button_loading": "ডকুমেন্ট তৈরি হচ্ছে...", "clear_button": "صاف کریں", "admin_title": "অ্যাডমিন প্যানেল", "login_header": "লগইন", "login_email_placeholder": "ইমেল ঠিকানা", "login_password_placeholder": "পাসওয়ার্ড", "login_button": "লগইন", "login_status_text": " হিসাবে লগ ইন করেছেন", "logout_button": "লগআউট", "register_case_header": "অভ্যন্তরীণ কেস নিবন্ধন করুন", "occurred_at_label": "ঘটনার তারিখ এবং সময়:", "title_label": "শিরোনাম (প্রয়োজনীয়)", "description_label": "পরিস্থিতি কী ছিল? (প্রয়োজনীয়)", "cause_label": "কারণ কী ছিল? (প্রয়োজনীয়)", "measures_label": "কী ব্যবস্থা নেওয়া হয়েছিল? (প্রয়োজনীয়)", "submit_button": "জমা দিন", "form_title": "দুর্ঘটনা প্রতিবেদন ফর্ম", "form_subtitle": "অনুগ্রহ করে নিম্নলিখিত আইটেমগুলি পূরণ করুন।", "occurrence_time_label": "ঘটনার সময়", "situation_label": "দুর্ঘটনার পরিস্থিতি", "cause_label_form": "কারণ", "countermeasures_label": "সম্ভাব্য পাল্টা ব্যবস্থা", "submit_report_button": "প্রতিবেদন জমা দিন", "error_fetch": "তথ্য আনতে ব্যর্থ। অনুগ্রহ করে আবার চেষ্টা করুন।", "error_pdf": "পিডিএফ তৈরি করতে ব্যর্থ হয়েছে।",
+                    "admin_section_title": "প্রশাসকদের জন্য", 
+                    "admin_link_text": "দুর্ঘটনা নিবন্ধন করুন",
+                    "admin_list_link_text": "দুর্ঘটনার তালিকা দেখুন" // ★追加
+                }
             },
             zh: {
-                translation: { "title": "安全导航员", "subtitle": "输入工作内容以检查潜在危险和对策。", "search_placeholder": "例如：在高处组装脚手架", "search_button": "搜索", "loading_text": "正在搜索...", "measures_header": "应采取的措施", "videos_header": "相关视频", "video_title_description": "事故情况", "video_title_measure": "对策", "gemini_suggestion_header": "来自Gemini的额外建议", "generate_doc_button": "用此内容创建文档", "generate_doc_button_loading": "正在创建文档...", "admin_title": "管理员面板", "login_header": "登录", "login_email_placeholder": "电子邮件地址", "login_password_placeholder": "密码", "login_button": "登录", "login_status_text": "已登录为", "logout_button": "登出", "register_case_header": "登记内部案例", "occurred_at_label": "发生日期和时间：", "title_label": "标题（必填）", "description_label": "当时情况如何？（必填）", "cause_label": "原因是什么？（必填）", "measures_label": "采取了什么措施？（必填）", "submit_button": "提交", "form_title": "事故报告表", "form_subtitle": "请填写以下项目。", "occurrence_time_label": "发生时间", "situation_label": "事故情况", "cause_label_form": "原因", "countermeasures_label": "可能的对策", "submit_report_button": "提交报告", "error_fetch": "获取信息失败。请再试一次。", "error_pdf": "生成PDF失败。", "admin_section_title": "管理员专用", "admin_link_text": "事故登记" }
+                translation: {
+                    "title": "安全导航员", "subtitle": "输入工作内容以检查潜在危险和对策。", "search_placeholder": "例如：在高处组装脚手架", "search_button": "搜索", "loading_text": "正在搜索...", "measures_header": "应采取的措施", "videos_header": "相关视频", "video_title_description": "事故情况", "video_title_measure": "对策", "gemini_suggestion_header": "来自Gemini的额外建议", "generate_doc_button": "用此内容创建文档", "generate_doc_button_loading": "正在创建文档...", "clear_button": "清除", "admin_title": "管理员面板", "login_header": "登录", "login_email_placeholder": "电子邮件地址", "login_password_placeholder": "密码", "login_button": "登录", "login_status_text": "已登录为", "logout_button": "登出", "register_case_header": "登记内部案例", "occurred_at_label": "发生日期和时间：", "title_label": "标题（必填）", "description_label": "当时情况如何？（必填）", "cause_label": "原因是什么？（必填）", "measures_label": "采取了什么措施？（必填）", "submit_button": "提交", "form_title": "事故报告表", "form_subtitle": "请填写以下项目。", "occurrence_time_label": "发生时间", "situation_label": "事故情况", "cause_label_form": "原因", "countermeasures_label": "可能的对策", "submit_report_button": "提交报告", "error_fetch": "获取信息失败。请再试一次。", "error_pdf": "生成PDF失败。",
+                    "admin_section_title": "管理员专用", 
+                    "admin_link_text": "事故登记",
+                    "admin_list_link_text": "查看事故列表" // ★追加
+                }
             }
         };
         
@@ -258,6 +292,16 @@
                     generateDocButton.innerHTML = originalText;
                 }
             });
+
+            // ★★★ クリアボタンのイベントリスナーを追加 ★★★
+            clearButton.addEventListener('click', () => {
+                searchInput.value = '';
+                resultContainer.classList.add('hidden');
+                errorMessage.classList.add('hidden');
+                currentCategoryData = null;
+                searchInput.focus();
+            });
+
             updateContent();
         }
 
